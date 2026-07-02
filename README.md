@@ -1,19 +1,26 @@
+<div align="center">
+
+<a href="README.md">English</a> ｜
+<a href="README.zh-CN.md">简体中文</a>
+
+</div>
+
 # L10n-autotrans
 
-中文产品文案多语言本地化生成与 QA 工具。项目基于 Streamlit 构建，面向产品运营、App 出海运营、电商出海文案团队，用于批量输入中文文案，生成英语、日语、法语本地化版本，并自动输出基础 QA 报告。
+A Multilingual Copy Localization QA Tool for Chinese product copy. Built with Streamlit, this project is designed for product operations, app global expansion teams, and cross-border ecommerce copy teams. It supports batch input of Chinese copy, generates localized versions in English, Japanese, and French, and automatically produces a basic QA report.
 
-本项目定位为作品集 Demo，不包含账号、权限、数据库等企业级系统，重点展示清晰的产品流程、模块化代码结构和可本地运行的 AI 应用能力。
+This project is positioned as a portfolio demo. It does not include enterprise-level account systems, permissions, or databases. Instead, it focuses on a clear product workflow, modular code organization, and a locally runnable AI application.
 
-## 功能亮点
+## Feature Highlights
 
-- 批量输入中文文案，支持网页表格编辑、CSV / Excel 上传。
-- 支持英语 `en`、日语 `ja`、法语 `fr` 多选，一次生成多语言结果。
-- 根据文案类型动态调整 QA 关注点。
-- 接入 DeepSeek API，并支持无 API Key 的 mock 演示模式。
-- 自动检查长度风险、术语一致性、文化适配和语气风险。
-- 支持导出 CSV、Excel、JSON。
+- Batch input for Chinese copy, with editable web tables and CSV / Excel uploads.
+- Multi-select target languages: English `en`, Japanese `ja`, and French `fr`.
+- Dynamic QA focus based on copy type.
+- DeepSeek API integration with a mock mode for demos without an API key.
+- Automated checks for length risk, terminology consistency, cultural adaptation, and tone risk.
+- Export results as CSV, Excel, or JSON.
 
-## 技术栈
+## Tech Stack
 
 - Python
 - Streamlit
@@ -22,18 +29,18 @@
 - python-dotenv
 - openpyxl
 
-## 本地运行
+## Local Setup
 
 ```bash
 pip install -r requirements.txt
 streamlit run app.py
 ```
 
-启动后在浏览器中打开 Streamlit 输出的本地地址。
+After startup, open the local URL printed by Streamlit in your browser.
 
-## `.env` 配置
+## `.env` Configuration
 
-复制 `.env.example` 为 `.env`，并按需填写：
+Copy `.env.example` to `.env` and fill in the values as needed:
 
 ```env
 DEEPSEEK_API_KEY=your_deepseek_api_key_here
@@ -41,47 +48,47 @@ DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-chat
 ```
 
-如果 `.env` 中没有 API Key，也可以在 Streamlit 侧边栏临时输入。临时输入的 Key 只保存在当前 session，不会写入本地文件。侧边栏提供“清除当前 API Key”按钮。
+If `.env` does not contain an API key, you can temporarily enter one in the Streamlit sidebar. The temporary key is stored only in the current session and is never written to a local file. The sidebar also provides a "Clear current API Key" button.
 
-## DeepSeek API Key 说明
+## DeepSeek API Key
 
-有 API Key 时，关闭 mock 模式即可调用 DeepSeek OpenAI-compatible Chat Completions 接口。模型输出被要求为严格 JSON，程序会解析 `localized_text`、`rationale`、`cultural_adaptation`、`tone_notes`、`risk_notes` 字段。
+When an API key is available, disable mock mode to call DeepSeek's OpenAI-compatible Chat Completions API. The model is instructed to return strict JSON, and the app parses the `localized_text`, `rationale`, `cultural_adaptation`, `tone_notes`, and `risk_notes` fields.
 
-如果 API 不可用，应用会回退到 mock 示例结果，方便继续演示完整流程。
+If the API is unavailable, the app falls back to mock sample results so the full workflow can still be demonstrated.
 
-## Mock 模式
+## Mock Mode
 
-mock 模式不需要任何 API Key。它会返回示例本地化结果和 QA 说明，适合课堂展示、作品集录屏和离线评审。
+Mock mode does not require an API key. It returns sample localization results and QA notes, making it suitable for classroom demos, portfolio walkthroughs, and offline reviews.
 
-## 输入表格格式
+## Input Table Format
 
-最低支持以下列：
+The minimum supported columns are:
 
 ```csv
 id,source_text,copy_type,max_chars,ui_width_px
 btn_001,立即购买,App 按钮,12,120
 ```
 
-字段说明：
+Field descriptions:
 
-- `id`：文案编号，可选。
-- `source_text`：中文原文，必填。
-- `copy_type`：文案类型，可选；为空时使用页面默认文案类型。
-- `max_chars`：最大字符数，可选。
-- `ui_width_px`：UI 控件宽度，单位 px，可选。
+- `id`: Optional copy identifier.
+- `source_text`: Required Chinese source text.
+- `copy_type`: Optional copy type. If empty, the page-level default copy type is used.
+- `max_chars`: Optional maximum character count.
+- `ui_width_px`: Optional UI control width in pixels.
 
-示例文件位于 `sample_data/sample_input.csv`。
+The sample file is located at `sample_data/sample_input.csv`.
 
-## 术语表格式
+## Terminology Table Format
 
-最低兼容格式：
+Minimum compatible format:
 
 ```csv
 source_term,target_term
 会员,Membership
 ```
 
-推荐格式：
+Recommended format:
 
 ```csv
 source_term,target_language,target_term,note
@@ -90,24 +97,24 @@ source_term,target_language,target_term,note
 会员,fr,abonnement,
 ```
 
-上传后可在侧边栏自定义字段映射。如果术语表没有 `target_language` 列，需要手动选择这份术语表对应的目标语言。
+After uploading a terminology table, you can customize the field mapping in the sidebar. If the table does not include a `target_language` column, you need to manually select which target language the table applies to.
 
-示例文件位于 `sample_data/sample_terms.csv`。
+The sample file is located at `sample_data/sample_terms.csv`.
 
-## 导出结果
+## Exported Results
 
-每条中文文案、每种目标语言会生成一条结果，包含：
+Each Chinese copy item and each target language generates one result row, including:
 
-- 原文与文案类型
-- 目标语言与本地化译文
-- 译法说明、文化适配建议、语气说明、风险说明
-- 长度风险等级与原因
-- 术语一致性状态
-- `overall_status`：`pass`、`warning`、`fail`
+- Source text and copy type
+- Target language and localized text
+- Translation rationale, cultural adaptation suggestions, tone notes, and risk notes
+- Length risk level and explanation
+- Terminology consistency status
+- `overall_status`: `pass`, `warning`, or `fail`
 
-页面支持导出为 CSV、Excel、JSON。
+The page supports exporting results as CSV, Excel, and JSON.
 
-## 项目结构
+## Project Structure
 
 ```text
 L10n-autotrans/
@@ -115,6 +122,7 @@ L10n-autotrans/
   requirements.txt
   .env.example
   README.md
+  README.zh-CN.md
   sample_data/
     sample_input.csv
     sample_terms.csv
@@ -129,19 +137,19 @@ L10n-autotrans/
     utils.py
 ```
 
-## 作品集展示亮点
+## Portfolio Highlights
 
-- 有明确用户场景：出海产品和电商文案本地化。
-- 有可交互 Demo：无需 API Key 也能完整跑通。
-- 有工程化拆分：页面、模型调用、Prompt、QA、术语、导出分层清晰。
-- 有基础错误处理：API 异常、CSV 格式错误、JSON 解析失败不会导致整页崩溃。
-- 有真实业务判断：不同文案类型对应不同 QA 关注点。
+- Clear user scenario: localization for global expansion products and ecommerce copy.
+- Interactive demo: the full workflow runs without an API key through mock mode.
+- Modular engineering structure: UI, model calls, prompts, QA, terminology, and export logic are separated.
+- Basic error handling: API errors, CSV format issues, and JSON parsing failures do not crash the whole page.
+- Practical product judgment: different copy types map to different QA focus areas.
 
-## 后续扩展方向
+## Future Extensions
 
-- 增加更多目标语言和地区变体，如 `en-US`、`en-GB`、`fr-CA`。
-- 支持术语近似匹配、大小写检查、品牌名保护和多译法管理。
-- 增加批量重试、缓存、成本统计和调用日志。
-- 引入更细的 UI 长度估算，例如按字体、字号、组件类型计算。
-- 支持人工审校状态、备注和二次改写。
-- 增加 pytest 单元测试与 CI 检查。
+- Add more target languages and regional variants, such as `en-US`, `en-GB`, and `fr-CA`.
+- Support fuzzy terminology matching, case checks, brand-name protection, and multi-translation management.
+- Add batch retry, caching, cost tracking, and call logs.
+- Introduce more detailed UI length estimation based on font, font size, and component type.
+- Support human review status, reviewer notes, and second-pass rewriting.
+- Add pytest unit tests and CI checks.
