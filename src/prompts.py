@@ -42,7 +42,10 @@ def build_localization_messages(
 
     system = (
         "You are a senior product localization specialist. "
-        "Return only valid JSON. Do not wrap the JSON in Markdown."
+        "Return only valid JSON. Do not wrap the JSON in Markdown. "
+        "The JSON field localized_text must be written in the target language. "
+        "The JSON fields rationale, cultural_adaptation, tone_notes, and risk_notes "
+        "must be written in Simplified Chinese."
     )
     user = f"""
 请将以下中文产品文案本地化为 {language_name}。
@@ -66,6 +69,12 @@ QA 关注点：
 - 不是逐字直译，而是适合目标语言和目标市场用户的自然表达。
 - 如果术语约束适用，应优先使用指定 target_term。
 - 注意语气、文化适配、移动端或电商场景可读性。
+- 字段语言要求：
+  - localized_text：必须使用目标语言 {language_name}。
+  - rationale：必须使用简体中文解释译法。
+  - cultural_adaptation：必须使用简体中文说明文化适配建议。
+  - tone_notes：必须使用简体中文说明语气。
+  - risk_notes：必须使用简体中文说明潜在风险。
 - 输出必须是严格 JSON，且只包含以下字段：
   - localized_text
   - rationale
@@ -75,11 +84,11 @@ QA 关注点：
 
 JSON 示例结构：
 {{
-  "localized_text": "...",
-  "rationale": "...",
-  "cultural_adaptation": "...",
-  "tone_notes": "...",
-  "risk_notes": "..."
+  "localized_text": "目标语言译文",
+  "rationale": "用简体中文说明为什么这样本地化。",
+  "cultural_adaptation": "用简体中文说明文化适配建议。",
+  "tone_notes": "用简体中文说明语气是否自然、是否符合场景。",
+  "risk_notes": "用简体中文说明潜在风险或需要人工复核的点。"
 }}
 """.strip()
     return [
