@@ -16,9 +16,10 @@
 - 批量输入中文文案，支持网页表格编辑、CSV / Excel 上传。
 - 支持英语 `en`、日语 `ja`、法语 `fr` 多选，一次生成多语言结果。
 - 根据文案类型动态调整 QA 关注点。
-- 接入 DeepSeek API，并支持无 API Key 的 mock 演示模式。
+- 支持轻量多 Provider：Mock、DeepSeek、OpenAI / ChatGPT、Anthropic / Claude、OpenRouter。
 - 自动检查长度风险、术语一致性、文化适配和语气风险。
-- 支持导出 CSV、Excel、JSON。
+- API 调用失败时可自动回退到 Mock，方便作品集演示不中断。
+- 支持导出 CSV、Excel、JSON，并保留 provider 与 model 信息。
 
 ## 技术栈
 
@@ -28,6 +29,8 @@
 - requests
 - python-dotenv
 - openpyxl
+- openai
+- anthropic
 
 ## 本地运行
 
@@ -43,22 +46,66 @@ streamlit run app.py
 复制 `.env.example` 为 `.env`，并按需填写：
 
 ```env
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# Default provider used when the app starts.
+# Valid values: mock, deepseek, openai, anthropic, openrouter
+DEFAULT_PROVIDER=mock
+
+# DeepSeek
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_DEFAULT_MODEL=
+
+# OpenAI / ChatGPT API
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_DEFAULT_MODEL=
+
+# Anthropic / Claude API
+ANTHROPIC_API_KEY=
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_DEFAULT_MODEL=
+
+# OpenRouter
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_DEFAULT_MODEL=
+OPENROUTER_SITE_URL=
+OPENROUTER_APP_NAME=L10n-autotrans
 ```
 
-如果 `.env` 中没有 API Key，也可以在 Streamlit 侧边栏临时输入。临时输入的 Key 只保存在当前 session，不会写入本地文件。侧边栏提供“清除当前 API Key”按钮。
+`DEFAULT_PROVIDER` 控制应用启动时默认选择的 Provider。如果没有配置或配置错误，会回退到 `mock`。
 
-## DeepSeek API Key 说明
+## 支持的 LLM Provider
 
-有 API Key 时，关闭 mock 模式即可调用 DeepSeek OpenAI-compatible Chat Completions 接口。模型输出被要求为严格 JSON，程序会解析 `localized_text`、`rationale`、`cultural_adaptation`、`tone_notes`、`risk_notes` 字段。
+侧边栏每次运行只能选择一个 Provider：
 
-如果 API 不可用，应用会回退到 mock 示例结果，方便继续演示完整流程。
+- Mock
+- DeepSeek
+- OpenAI / ChatGPT
+- Anthropic / Claude
+- OpenRouter
 
-## Mock 模式
+目标语言仍然支持多选，因此一个 Provider 可以在同一次批处理中生成英语、日语、法语结果。
+
+## 模型配置
+
+模型名称可能随时间变化。不要把示例或旧模型名视为永久有效。建议使用应用内的 “Refresh models” 按钮，或参考 Provider 官方文档选择当前可用模型。
+
+每个真实 Provider 都有模型下拉框和 `Manual model override` 输入框。如果模型列表刷新失败，仍可以手动粘贴有效模型名。如果没有任何可用模型名，应用会阻止真实 API 调用，并提示刷新模型、手动输入模型名，或切换到 Mock。
+
+## API Key 处理
+
+API Key 可以从 `.env` 读取，也可以在 Streamlit 页面临时输入。临时输入的 API Key 只保存在当前 Streamlit session，不会写入本地文件。UI 只会显示当前所选真实 Provider 对应的 API Key 输入框。
+
+Mock 不需要 API Key。真实 Provider 如果没有可用 API Key，应用会提示输入 API Key 或切换到 Mock。
+
+## Mock 模式与 fallback
 
 mock 模式不需要任何 API Key。它会返回示例本地化结果和 QA 说明，适合课堂展示、作品集录屏和离线评审。
+
+开启 “Fallback to Mock when API call fails” 后，真实 Provider 调用失败会自动回退到 Mock 结果。导出文件中包含 `provider`、`model`、`provider_status` 字段，便于离开网页后仍能知道结果来源。
+
+代码中已提供 DeepSeek、OpenAI / ChatGPT、Anthropic / Claude、OpenRouter 的 API 调用路径，但实际可用性取决于你自己的 API Key、模型名和 Provider 侧权限。
 
 ## 输入表格格式
 
@@ -108,6 +155,7 @@ source_term,target_language,target_term,note
 - 原文与文案类型
 - 目标语言与本地化译文
 - 译法说明、文化适配建议、语气说明、风险说明
+- Provider、model 和 provider status
 - 长度风险等级与原因
 - 术语一致性状态
 - `overall_status`：`pass`、`warning`、`fail`
@@ -141,7 +189,7 @@ L10n-autotrans/
 
 - 有明确用户场景：出海产品和电商文案本地化。
 - 有可交互 Demo：无需 API Key 也能完整跑通。
-- 有工程化拆分：页面、模型调用、Prompt、QA、术语、导出分层清晰。
+- 有工程化拆分：页面、多 Provider 模型调用、Prompt、QA、术语、导出分层清晰。
 - 有基础错误处理：API 异常、CSV 格式错误、JSON 解析失败不会导致整页崩溃。
 - 有真实业务判断：不同文案类型对应不同 QA 关注点。
 
@@ -150,6 +198,7 @@ L10n-autotrans/
 - 增加更多目标语言和地区变体，如 `en-US`、`en-GB`、`fr-CA`。
 - 支持术语近似匹配、大小写检查、品牌名保护和多译法管理。
 - 增加批量重试、缓存、成本统计和调用日志。
+- 增加自定义 OpenAI-compatible Provider 或轻量 Provider 注册机制。
 - 引入更细的 UI 长度估算，例如按字体、字号、组件类型计算。
 - 支持人工审校状态、备注和二次改写。
 - 增加 pytest 单元测试与 CI 检查。

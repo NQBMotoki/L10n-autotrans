@@ -4,7 +4,7 @@ import pandas as pd
 import streamlit as st
 
 from src.exporters import to_csv_bytes, to_excel_bytes, to_json_bytes
-from src.llm_client import localize_with_model
+from src.llm_client import generate_localization, list_provider_models
 from src.prompts import build_localization_messages
 from src.qa_rules import check_length_risk, determine_overall_status, get_qa_focus
 from src.schemas import (
@@ -12,6 +12,8 @@ from src.schemas import (
     DEFAULT_INPUT_ROWS,
     INPUT_COLUMNS,
     LANGUAGE_OPTIONS,
+    PROVIDER_LABELS,
+    PROVIDER_ORDER,
     RESULT_COLUMNS,
 )
 from src.terminology import (
@@ -80,26 +82,96 @@ def render_downloads(results_df: pd.DataFrame) -> None:
         )
 
 
+def current_provider_config(env_config: dict, provider: str) -> dict[str, str]:
+    return env_config["providers"].get(provider, {})
+
+
+def get_cached_models(provider: str) -> list[str]:
+    return st.session_state.model_cache.get(provider, [])
+
+
+def set_cached_models(provider: str, models: list[str]) -> None:
+    st.session_state.model_cache[provider] = models
+
+
 env_config = load_env_config()
-if "api_key_input" not in st.session_state:
-    st.session_state.api_key_input = env_config["api_key"]
+if "model_cache" not in st.session_state:
+    st.session_state.model_cache = {}
 if "results_df" not in st.session_state:
     st.session_state.results_df = pd.DataFrame(columns=RESULT_COLUMNS)
+for provider_key in PROVIDER_ORDER:
+    session_key = f"{provider_key}_api_key_input"
+    if session_key not in st.session_state:
+        st.session_state[session_key] = current_provider_config(env_config, provider_key).get(
+            "api_key", ""
+        )
 
 with st.sidebar:
     st.header("配置")
 
-    if st.button("清除当前 API Key", use_container_width=True):
-        st.session_state.api_key_input = ""
-        st.rerun()
-
-    api_key = st.text_input(
-        "DeepSeek API Key",
-        type="password",
-        key="api_key_input",
-        placeholder="可留空使用 mock 模式",
+    default_provider = env_config["default_provider"]
+    provider = st.radio(
+        "Provider",
+        options=PROVIDER_ORDER,
+        index=select_index(PROVIDER_ORDER, default_provider),
+        format_func=lambda key: PROVIDER_LABELS[key],
     )
-    mock_mode = st.toggle("启用 mock 模式", value=not bool(api_key))
+    provider_config = current_provider_config(env_config, provider)
+
+    api_key = ""
+    selected_model = "mock"
+    manual_model = ""
+    fallback_to_mock = st.checkbox("Fallback to Mock when API call fails", value=True)
+
+    if provider == "mock":
+        st.caption("Mock Provider 无需 API Key 或模型选择。")
+    else:
+        session_key = f"{provider}_api_key_input"
+        if st.button("清除当前 API Key", use_container_width=True):
+            st.session_state[session_key] = ""
+            st.rerun()
+
+        api_key = st.text_input(
+            f"{PROVIDER_LABELS[provider]} API Key",
+            type="password",
+            key=session_key,
+            placeholder="可临时输入，不会写入本地文件",
+        )
+
+        st.subheader("模型")
+        refresh_clicked = st.button("Refresh models", use_container_width=True)
+        if refresh_clicked:
+            try:
+                refreshed_models = list_provider_models(
+                    provider=provider,
+                    api_key=api_key,
+                    base_url=provider_config.get("base_url", ""),
+                    site_url=provider_config.get("site_url", ""),
+                    app_name=provider_config.get("app_name", ""),
+                )
+                set_cached_models(provider, refreshed_models)
+                st.success(f"已刷新 {len(refreshed_models)} 个模型。")
+            except Exception as exc:  # noqa: BLE001 - keep UI responsive.
+                st.warning(f"模型列表刷新失败：{exc}")
+
+        cached_models = get_cached_models(provider)
+        default_model = provider_config.get("default_model", "")
+        model_options = cached_models.copy()
+        if default_model and default_model not in model_options:
+            model_options.insert(0, default_model)
+
+        if model_options:
+            selected_model = st.selectbox("Model", model_options)
+        else:
+            selected_model = ""
+            st.caption("暂无模型列表。请刷新模型，或使用手动模型名。")
+
+        manual_model = st.text_input(
+            "Manual model override",
+            value="",
+            placeholder="例如从 Provider 官方文档复制当前可用模型名",
+        ).strip()
+        selected_model = manual_model or selected_model
 
     target_languages = st.multiselect(
         "目标语言",
@@ -200,11 +272,16 @@ if run_clicked:
         st.warning("请至少选择一种目标语言。")
     elif clean_df.empty:
         st.warning("请至少输入一条中文原文。")
+    elif provider != "mock" and not api_key:
+        st.warning("当前真实 Provider 缺少 API Key。请输入 API Key，或切换到 Mock。")
+    elif provider != "mock" and not selected_model:
+        st.warning("当前真实 Provider 缺少模型名。请刷新模型、手动输入模型名，或切换到 Mock。")
     else:
         rows = []
         total = len(clean_df) * len(target_languages)
         progress = st.progress(0, text="正在生成本地化结果...")
         completed = 0
+        fallback_count = 0
 
         for _, row in clean_df.iterrows():
             source_text = safe_text(row.get("source_text"))
@@ -224,17 +301,22 @@ if run_clicked:
                     max_chars=max_chars,
                     ui_width_px=ui_width_px,
                 )
-                model_result = localize_with_model(
+                model_result = generate_localization(
+                    provider=provider,
+                    model=selected_model,
+                    api_key=api_key,
+                    base_url=provider_config.get("base_url", ""),
                     messages=messages,
                     source_text=source_text,
                     target_language=target_language,
                     copy_type=copy_type,
-                    api_key=api_key,
-                    base_url=env_config["base_url"],
-                    model=env_config["model"],
-                    mock_mode=mock_mode,
+                    fallback_to_mock=fallback_to_mock,
                     terms=applicable_terms,
+                    site_url=provider_config.get("site_url", ""),
+                    app_name=provider_config.get("app_name", ""),
                 )
+                if model_result.provider_status == "fallback":
+                    fallback_count += 1
 
                 if model_result.error:
                     length_risk = "high"
@@ -267,6 +349,9 @@ if run_clicked:
                         "source_text": source_text,
                         "copy_type": copy_type,
                         "target_language": target_language,
+                        "provider": model_result.provider,
+                        "model": model_result.model,
+                        "provider_status": model_result.provider_status,
                         "localized_text": model_result.localized_text,
                         "rationale": model_result.rationale,
                         "cultural_adaptation": model_result.cultural_adaptation,
@@ -284,6 +369,8 @@ if run_clicked:
 
         progress.empty()
         st.session_state.results_df = pd.DataFrame(rows, columns=RESULT_COLUMNS)
+        if fallback_count:
+            st.warning(f"本次有 {fallback_count} 条结果来自 Mock fallback。")
         st.success("本地化与 QA 已完成。")
 
 st.subheader("结果总览")
@@ -297,7 +384,17 @@ else:
         default=["pass", "warning", "fail"],
     )
     filtered_df = results_df[results_df["overall_status"].isin(status_filter)]
-    st.dataframe(filtered_df, use_container_width=True, hide_index=True)
+    display_columns = [
+        "id",
+        "source_text",
+        "copy_type",
+        "target_language",
+        "localized_text",
+        "length_risk",
+        "terminology_status",
+        "overall_status",
+    ]
+    st.dataframe(filtered_df[display_columns], use_container_width=True, hide_index=True)
 
     with st.expander("逐条查看"):
         for _, result in filtered_df.iterrows():
@@ -305,6 +402,7 @@ else:
                 f"**{safe_text(result['id']) or '(no id)'} · "
                 f"{result['target_language']} · {result['overall_status']}**"
             )
+            st.caption(f"Provider: {result['provider']} · Model: {result['model']}")
             st.write(result["localized_text"])
             st.caption(result["length_risk_reason"])
             if safe_text(result["terminology_issues"]):

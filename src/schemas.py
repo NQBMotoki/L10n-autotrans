@@ -18,6 +18,22 @@ LANGUAGE_NAMES: dict[str, str] = {
     "fr": "French",
 }
 
+PROVIDER_ORDER: list[str] = [
+    "mock",
+    "deepseek",
+    "openai",
+    "anthropic",
+    "openrouter",
+]
+
+PROVIDER_LABELS: dict[str, str] = {
+    "mock": "Mock",
+    "deepseek": "DeepSeek",
+    "openai": "OpenAI / ChatGPT",
+    "anthropic": "Anthropic / Claude",
+    "openrouter": "OpenRouter",
+}
+
 COPY_TYPES: list[str] = [
     "App 按钮",
     "错误提示",
@@ -41,6 +57,9 @@ RESULT_COLUMNS: list[str] = [
     "source_text",
     "copy_type",
     "target_language",
+    "provider",
+    "model",
+    "provider_status",
     "localized_text",
     "rationale",
     "cultural_adaptation",
@@ -88,6 +107,9 @@ class ModelResult:
     tone_notes: str
     risk_notes: str
     error: str = ""
+    provider: str = "mock"
+    model: str = "mock"
+    provider_status: str = "ok"
 
 
 @dataclass(frozen=True)

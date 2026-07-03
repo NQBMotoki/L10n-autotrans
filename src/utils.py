@@ -9,20 +9,54 @@ from typing import Any
 import pandas as pd
 from dotenv import load_dotenv
 
-from .schemas import COPY_TYPES, INPUT_COLUMNS
+from .schemas import COPY_TYPES, INPUT_COLUMNS, PROVIDER_ORDER
 
 
 PROJECT_ROOT = Path(__file__).resolve().parents[1]
 
 
-def load_env_config() -> dict[str, str]:
-    """Load optional DeepSeek settings from .env without failing if absent."""
+def load_env_config() -> dict[str, Any]:
+    """Load optional multi-provider settings from .env without failing if absent."""
 
     load_dotenv(PROJECT_ROOT / ".env")
+    default_provider = os.getenv("DEFAULT_PROVIDER", "mock").strip().lower()
+    if default_provider not in PROVIDER_ORDER:
+        default_provider = "mock"
+
     return {
-        "api_key": os.getenv("DEEPSEEK_API_KEY", "").strip(),
-        "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip(),
-        "model": os.getenv("DEEPSEEK_MODEL", "deepseek-chat").strip(),
+        "default_provider": default_provider,
+        "providers": {
+            "mock": {
+                "api_key": "",
+                "base_url": "",
+                "default_model": "mock",
+            },
+            "deepseek": {
+                "api_key": os.getenv("DEEPSEEK_API_KEY", "").strip(),
+                "base_url": os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com").strip(),
+                "default_model": (
+                    os.getenv("DEEPSEEK_DEFAULT_MODEL")
+                    or os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+                ).strip(),
+            },
+            "openai": {
+                "api_key": os.getenv("OPENAI_API_KEY", "").strip(),
+                "base_url": os.getenv("OPENAI_BASE_URL", "https://api.openai.com/v1").strip(),
+                "default_model": os.getenv("OPENAI_DEFAULT_MODEL", "").strip(),
+            },
+            "anthropic": {
+                "api_key": os.getenv("ANTHROPIC_API_KEY", "").strip(),
+                "base_url": os.getenv("ANTHROPIC_BASE_URL", "https://api.anthropic.com").strip(),
+                "default_model": os.getenv("ANTHROPIC_DEFAULT_MODEL", "").strip(),
+            },
+            "openrouter": {
+                "api_key": os.getenv("OPENROUTER_API_KEY", "").strip(),
+                "base_url": os.getenv("OPENROUTER_BASE_URL", "https://openrouter.ai/api/v1").strip(),
+                "default_model": os.getenv("OPENROUTER_DEFAULT_MODEL", "").strip(),
+                "site_url": os.getenv("OPENROUTER_SITE_URL", "").strip(),
+                "app_name": os.getenv("OPENROUTER_APP_NAME", "L10n-autotrans").strip(),
+            },
+        },
     }
 
 

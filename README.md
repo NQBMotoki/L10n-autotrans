@@ -16,9 +16,10 @@ This project is positioned as a portfolio demo. It does not include enterprise-l
 - Batch input for Chinese copy, with editable web tables and CSV / Excel uploads.
 - Multi-select target languages: English `en`, Japanese `ja`, and French `fr`.
 - Dynamic QA focus based on copy type.
-- DeepSeek API integration with a mock mode for demos without an API key.
+- Lightweight multi-provider support: Mock, DeepSeek, OpenAI / ChatGPT, Anthropic / Claude, and OpenRouter.
 - Automated checks for length risk, terminology consistency, cultural adaptation, and tone risk.
-- Export results as CSV, Excel, or JSON.
+- Mock fallback for failed API calls, so portfolio demos can continue even when a provider is unavailable.
+- Export results as CSV, Excel, or JSON, including provider and model metadata.
 
 ## Tech Stack
 
@@ -28,6 +29,8 @@ This project is positioned as a portfolio demo. It does not include enterprise-l
 - requests
 - python-dotenv
 - openpyxl
+- openai
+- anthropic
 
 ## Local Setup
 
@@ -43,22 +46,66 @@ After startup, open the local URL printed by Streamlit in your browser.
 Copy `.env.example` to `.env` and fill in the values as needed:
 
 ```env
-DEEPSEEK_API_KEY=your_deepseek_api_key_here
+# Default provider used when the app starts.
+# Valid values: mock, deepseek, openai, anthropic, openrouter
+DEFAULT_PROVIDER=mock
+
+# DeepSeek
+DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-chat
+DEEPSEEK_DEFAULT_MODEL=
+
+# OpenAI / ChatGPT API
+OPENAI_API_KEY=
+OPENAI_BASE_URL=https://api.openai.com/v1
+OPENAI_DEFAULT_MODEL=
+
+# Anthropic / Claude API
+ANTHROPIC_API_KEY=
+ANTHROPIC_BASE_URL=https://api.anthropic.com
+ANTHROPIC_DEFAULT_MODEL=
+
+# OpenRouter
+OPENROUTER_API_KEY=
+OPENROUTER_BASE_URL=https://openrouter.ai/api/v1
+OPENROUTER_DEFAULT_MODEL=
+OPENROUTER_SITE_URL=
+OPENROUTER_APP_NAME=L10n-autotrans
 ```
 
-If `.env` does not contain an API key, you can temporarily enter one in the Streamlit sidebar. The temporary key is stored only in the current session and is never written to a local file. The sidebar also provides a "Clear current API Key" button.
+`DEFAULT_PROVIDER` controls the provider selected when the app starts. If it is missing or invalid, the app falls back to `mock`.
 
-## DeepSeek API Key
+## Supported LLM Providers
 
-When an API key is available, disable mock mode to call DeepSeek's OpenAI-compatible Chat Completions API. The model is instructed to return strict JSON, and the app parses the `localized_text`, `rationale`, `cultural_adaptation`, `tone_notes`, and `risk_notes` fields.
+The sidebar lets you choose one provider per run:
 
-If the API is unavailable, the app falls back to mock sample results so the full workflow can still be demonstrated.
+- Mock
+- DeepSeek
+- OpenAI / ChatGPT
+- Anthropic / Claude
+- OpenRouter
 
-## Mock Mode
+Target languages remain multi-select, so one selected provider can generate English, Japanese, and French results in a single batch.
+
+## Model Configuration
+
+Model names may change over time. Do not treat example or old model names as permanently valid. Use the in-app "Refresh models" button or the provider's official documentation to select a current model.
+
+Each real provider has a model selector and a `Manual model override` input. If the model list cannot be refreshed, you can still paste a valid model name manually. If no model name is available, the app blocks real API calls and asks you to refresh models, enter a model manually, or switch to Mock.
+
+## API Key Handling
+
+API keys can be loaded from `.env` or temporarily entered in the Streamlit UI. Temporary API keys are stored only in the current Streamlit session and are not written to local files. The UI shows only the API key input for the currently selected real provider.
+
+Mock mode works without API keys. For real providers, if no API key is available, the app prompts you to enter one or switch to Mock.
+
+## Mock Mode and Fallback
 
 Mock mode does not require an API key. It returns sample localization results and QA notes, making it suitable for classroom demos, portfolio walkthroughs, and offline reviews.
+
+When "Fallback to Mock when API call fails" is enabled, failed real-provider calls automatically fall back to Mock results. Result exports include `provider`, `model`, and `provider_status` fields so exported files preserve the source of each result.
+
+The code includes API call paths for DeepSeek, OpenAI / ChatGPT, Anthropic / Claude, and OpenRouter, but availability depends on your own valid API keys, model names, and provider-side access.
 
 ## Input Table Format
 
@@ -108,6 +155,7 @@ Each Chinese copy item and each target language generates one result row, includ
 - Source text and copy type
 - Target language and localized text
 - Translation rationale, cultural adaptation suggestions, tone notes, and risk notes
+- Provider, model, and provider status
 - Length risk level and explanation
 - Terminology consistency status
 - `overall_status`: `pass`, `warning`, or `fail`
@@ -141,7 +189,7 @@ L10n-autotrans/
 
 - Clear user scenario: localization for global expansion products and ecommerce copy.
 - Interactive demo: the full workflow runs without an API key through mock mode.
-- Modular engineering structure: UI, model calls, prompts, QA, terminology, and export logic are separated.
+- Modular engineering structure: UI, multi-provider model calls, prompts, QA, terminology, and export logic are separated.
 - Basic error handling: API errors, CSV format issues, and JSON parsing failures do not crash the whole page.
 - Practical product judgment: different copy types map to different QA focus areas.
 
@@ -150,6 +198,7 @@ L10n-autotrans/
 - Add more target languages and regional variants, such as `en-US`, `en-GB`, and `fr-CA`.
 - Support fuzzy terminology matching, case checks, brand-name protection, and multi-translation management.
 - Add batch retry, caching, cost tracking, and call logs.
+- Add custom OpenAI-compatible providers or a lightweight provider registry.
 - Introduce more detailed UI length estimation based on font, font size, and component type.
 - Support human review status, reviewer notes, and second-pass rewriting.
 - Add pytest unit tests and CI checks.
