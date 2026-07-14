@@ -22,6 +22,30 @@ REQUIRED_MODEL_FIELDS = [
 
 OPENAI_COMPATIBLE_PROVIDERS = {"deepseek", "openai", "openrouter"}
 
+OPENAI_HTTPX_COMPATIBILITY_MESSAGE = (
+    "OpenAI SDK 与 HTTPX 版本不兼容。请执行 "
+    "`python -m pip install --upgrade -r requirements.txt` 后重启应用。"
+)
+
+
+def create_openai_client(
+    api_key: str,
+    base_url: str,
+    default_headers: dict[str, str] | None = None,
+) -> OpenAI:
+    """Create an OpenAI-compatible client with an actionable compatibility error."""
+
+    try:
+        return OpenAI(
+            api_key=api_key,
+            base_url=base_url.rstrip("/") if base_url else None,
+            default_headers=default_headers,
+        )
+    except TypeError as exc:
+        if "unexpected keyword argument 'proxies'" in str(exc):
+            raise RuntimeError(OPENAI_HTTPX_COMPATIBILITY_MESSAGE) from exc
+        raise
+
 
 def extract_json_object(raw_text: str) -> dict[str, Any]:
     text = raw_text.strip()
@@ -112,7 +136,7 @@ def mock_localization(
         rationale=f"{reason} 已按“{copy_type}”场景生成自然表达。{term_hint}".strip(),
         cultural_adaptation="示例建议：根据目标市场习惯调整语气，避免机械直译。",
         tone_notes="语气保持清晰、自然，并贴近产品界面或营销场景。",
-        risk_notes="这是 mock 结果，仅用于流程演示；正式使用请接入真实 Provider。",
+        risk_notes="这是 Mock 结果，仅用于流程演示；正式使用请接入真实模型服务商。",
         provider=provider,
         model="mock",
         provider_status=provider_status,
@@ -137,10 +161,12 @@ def call_openai_compatible(
     site_url: str = "",
     app_name: str = "",
 ) -> ModelResult:
-    client = OpenAI(
+    client = create_openai_client(
         api_key=api_key,
-        base_url=base_url.rstrip("/") if base_url else None,
-        default_headers=openrouter_headers(site_url, app_name) if provider == "openrouter" else None,
+        base_url=base_url,
+        default_headers=(
+            openrouter_headers(site_url, app_name) if provider == "openrouter" else None
+        ),
     )
     response = client.chat.completions.create(
         model=model,
@@ -208,7 +234,7 @@ def generate_localization(
             )
         if provider == "anthropic":
             return call_anthropic(messages, api_key, base_url, model)
-        raise ValueError(f"Unsupported provider: {provider}")
+        raise ValueError(f"不支持的模型服务商：{provider}")
     except Exception as exc:  # noqa: BLE001 - convert provider errors to app-level results.
         message = str(exc) or exc.__class__.__name__
         if fallback_to_mock:
@@ -217,7 +243,7 @@ def generate_localization(
                 target_language,
                 copy_type,
                 terms,
-                fallback_reason=f"{provider} API 调用失败，已自动使用 Mock fallback：{message}",
+                fallback_reason=f"{provider} API 调用失败，已自动回退到 Mock：{message}",
                 provider_status="fallback",
             )
         return ModelResult(
@@ -240,10 +266,12 @@ def list_openai_compatible_models(
     site_url: str = "",
     app_name: str = "",
 ) -> list[str]:
-    client = OpenAI(
+    client = create_openai_client(
         api_key=api_key,
-        base_url=base_url.rstrip("/") if base_url else None,
-        default_headers=openrouter_headers(site_url, app_name) if provider == "openrouter" else None,
+        base_url=base_url,
+        default_headers=(
+            openrouter_headers(site_url, app_name) if provider == "openrouter" else None
+        ),
     )
     response = client.models.list()
     return sorted(model.id for model in response.data if getattr(model, "id", ""))
@@ -280,11 +308,11 @@ def list_provider_models(
     if provider == "mock":
         return ["mock"]
     if not api_key:
-        raise ValueError("请先提供当前 Provider 的 API Key。")
+        raise ValueError("请先提供当前模型服务商的 API Key。")
     if provider in {"deepseek", "openai"}:
         return list_openai_compatible_models(provider, api_key, base_url)
     if provider == "anthropic":
         return list_anthropic_models(api_key, base_url)
     if provider == "openrouter":
         return list_openrouter_models(api_key, base_url, site_url, app_name)
-    raise ValueError(f"Unsupported provider: {provider}")
+    raise ValueError(f"不支持的模型服务商：{provider}")

@@ -35,11 +35,16 @@ This project is positioned as a portfolio demo. It does not include enterprise-l
 ## Local Setup
 
 ```bash
-pip install -r requirements.txt
+python -m pip install --upgrade -r requirements.txt
 streamlit run app.py
 ```
 
 After startup, open the local URL printed by Streamlit in your browser.
+
+The `--upgrade` flag is important for existing environments. OpenAI Python 1.55.3 or newer is
+required for compatibility with HTTPX 0.28 and newer. If the app reports
+`Client.__init__() got an unexpected keyword argument 'proxies'`, rerun the install command above
+and restart Streamlit.
 
 ## `.env` Configuration
 
@@ -89,9 +94,9 @@ Target languages remain multi-select, so one selected provider can generate Engl
 
 ## Model Configuration
 
-Model names may change over time. Do not treat example or old model names as permanently valid. Use the in-app "Refresh models" button or the provider's official documentation to select a current model.
+Model names may change over time. Do not treat example or old model names as permanently valid. Use the in-app "刷新模型列表" (Refresh model list) button or the provider's official documentation to select a current model.
 
-Each real provider has a model selector and a `Manual model override` input. If the model list cannot be refreshed, you can still paste a valid model name manually. If no model name is available, the app blocks real API calls and asks you to refresh models, enter a model manually, or switch to Mock.
+Each real provider has a "模型" (Model) selector and a "手动指定模型" (Specify model manually) input. If the model list cannot be refreshed, you can still paste a valid model name manually. If no model name is available, the app blocks real API calls and asks you to refresh models, enter a model manually, or switch to Mock.
 
 ## API Key Handling
 
@@ -103,7 +108,7 @@ Mock mode works without API keys. For real providers, if no API key is available
 
 Mock mode does not require an API key. It returns sample localization results and QA notes, making it suitable for classroom demos, portfolio walkthroughs, and offline reviews.
 
-When "Fallback to Mock when API call fails" is enabled, failed real-provider calls automatically fall back to Mock results. Result exports include `provider`, `model`, and `provider_status` fields so exported files preserve the source of each result.
+When "API 调用失败时自动回退到 Mock" (Automatically fall back to Mock after an API failure) is enabled, failed real-provider calls automatically fall back to Mock results. Result exports include `provider`, `model`, and `provider_status` fields so exported files preserve the source of each result.
 
 The code includes API call paths for DeepSeek, OpenAI / ChatGPT, Anthropic / Claude, and OpenRouter, but availability depends on your own valid API keys, model names, and provider-side access.
 

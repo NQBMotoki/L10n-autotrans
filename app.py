@@ -38,6 +38,42 @@ from src.utils import (
 st.set_page_config(page_title="L10n-autotrans", page_icon="🌐", layout="wide")
 
 
+STATUS_LABELS: dict[str, str] = {
+    "pass": "通过",
+    "warning": "警告",
+    "fail": "失败",
+}
+
+LENGTH_RISK_LABELS: dict[str, str] = {
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+}
+
+TERMINOLOGY_STATUS_LABELS: dict[str, str] = {
+    "pass": "通过",
+    "warning": "警告",
+}
+
+RESULT_COLUMN_LABELS: dict[str, str] = {
+    "id": "ID",
+    "source_text": "中文原文",
+    "copy_type": "文案类型",
+    "target_language": "目标语言",
+    "localized_text": "本地化文案",
+    "length_risk": "长度风险",
+    "terminology_status": "术语状态",
+    "overall_status": "总体状态",
+}
+
+TERM_COLUMN_LABELS: dict[str, str] = {
+    "source_term": "中文源术语",
+    "target_language": "目标语言",
+    "target_term": "目标术语",
+    "note": "备注",
+}
+
+
 def select_index(options: list[str], selected: str | None, default: int = 0) -> int:
     if selected in options:
         return options.index(selected)
@@ -94,6 +130,25 @@ def set_cached_models(provider: str, models: list[str]) -> None:
     st.session_state.model_cache[provider] = models
 
 
+def localized_result_dataframe(results_df: pd.DataFrame) -> pd.DataFrame:
+    """Return a display-only copy with Chinese labels and status values."""
+
+    display_df = results_df.rename(columns=RESULT_COLUMN_LABELS).copy()
+    display_df[RESULT_COLUMN_LABELS["target_language"]] = results_df["target_language"].map(
+        LANGUAGE_OPTIONS
+    ).fillna(results_df["target_language"])
+    display_df[RESULT_COLUMN_LABELS["length_risk"]] = results_df["length_risk"].map(
+        LENGTH_RISK_LABELS
+    ).fillna(results_df["length_risk"])
+    display_df[RESULT_COLUMN_LABELS["terminology_status"]] = results_df[
+        "terminology_status"
+    ].map(TERMINOLOGY_STATUS_LABELS).fillna(results_df["terminology_status"])
+    display_df[RESULT_COLUMN_LABELS["overall_status"]] = results_df["overall_status"].map(
+        STATUS_LABELS
+    ).fillna(results_df["overall_status"])
+    return display_df
+
+
 env_config = load_env_config()
 if "model_cache" not in st.session_state:
     st.session_state.model_cache = {}
@@ -111,7 +166,7 @@ with st.sidebar:
 
     default_provider = env_config["default_provider"]
     provider = st.radio(
-        "Provider",
+        "模型服务商",
         options=PROVIDER_ORDER,
         index=select_index(PROVIDER_ORDER, default_provider),
         format_func=lambda key: PROVIDER_LABELS[key],
@@ -121,10 +176,10 @@ with st.sidebar:
     api_key = ""
     selected_model = "mock"
     manual_model = ""
-    fallback_to_mock = st.checkbox("Fallback to Mock when API call fails", value=True)
+    fallback_to_mock = st.checkbox("API 调用失败时自动回退到 Mock", value=True)
 
     if provider == "mock":
-        st.caption("Mock Provider 无需 API Key 或模型选择。")
+        st.caption("Mock 服务商无需 API Key 或模型选择。")
     else:
         session_key = f"{provider}_api_key_input"
         if st.button("清除当前 API Key", use_container_width=True):
@@ -139,7 +194,7 @@ with st.sidebar:
         )
 
         st.subheader("模型")
-        refresh_clicked = st.button("Refresh models", use_container_width=True)
+        refresh_clicked = st.button("刷新模型列表", use_container_width=True)
         if refresh_clicked:
             try:
                 refreshed_models = list_provider_models(
@@ -161,15 +216,15 @@ with st.sidebar:
             model_options.insert(0, default_model)
 
         if model_options:
-            selected_model = st.selectbox("Model", model_options)
+            selected_model = st.selectbox("模型", model_options)
         else:
             selected_model = ""
             st.caption("暂无模型列表。请刷新模型，或使用手动模型名。")
 
         manual_model = st.text_input(
-            "Manual model override",
+            "手动指定模型",
             value="",
-            placeholder="例如从 Provider 官方文档复制当前可用模型名",
+            placeholder="例如从服务商官方文档复制当前可用模型名",
         ).strip()
         selected_model = manual_model or selected_model
 
@@ -258,9 +313,11 @@ edited_df = st.data_editor(
     use_container_width=True,
     hide_index=True,
     column_config={
-        "copy_type": st.column_config.SelectboxColumn("copy_type", options=COPY_TYPES),
-        "max_chars": st.column_config.NumberColumn("max_chars", min_value=1, step=1),
-        "ui_width_px": st.column_config.NumberColumn("ui_width_px", min_value=1, step=1),
+        "id": st.column_config.TextColumn("ID"),
+        "source_text": st.column_config.TextColumn("中文原文"),
+        "copy_type": st.column_config.SelectboxColumn("文案类型", options=COPY_TYPES),
+        "max_chars": st.column_config.NumberColumn("最大字符数", min_value=1, step=1),
+        "ui_width_px": st.column_config.NumberColumn("UI 宽度（px）", min_value=1, step=1),
     },
 )
 edited_df = ensure_input_columns(edited_df)
@@ -273,9 +330,9 @@ if run_clicked:
     elif clean_df.empty:
         st.warning("请至少输入一条中文原文。")
     elif provider != "mock" and not api_key:
-        st.warning("当前真实 Provider 缺少 API Key。请输入 API Key，或切换到 Mock。")
+        st.warning("当前真实模型服务商缺少 API Key。请输入 API Key，或切换到 Mock。")
     elif provider != "mock" and not selected_model:
-        st.warning("当前真实 Provider 缺少模型名。请刷新模型、手动输入模型名，或切换到 Mock。")
+        st.warning("当前真实模型服务商缺少模型名。请刷新模型、手动输入模型名，或切换到 Mock。")
     else:
         rows = []
         total = len(clean_df) * len(target_languages)
@@ -370,7 +427,7 @@ if run_clicked:
         progress.empty()
         st.session_state.results_df = pd.DataFrame(rows, columns=RESULT_COLUMNS)
         if fallback_count:
-            st.warning(f"本次有 {fallback_count} 条结果来自 Mock fallback。")
+            st.warning(f"本次有 {fallback_count} 条结果来自 Mock 回退。")
         st.success("本地化与 QA 已完成。")
 
 st.subheader("结果总览")
@@ -382,6 +439,7 @@ else:
         "筛选状态",
         options=["pass", "warning", "fail"],
         default=["pass", "warning", "fail"],
+        format_func=lambda status: STATUS_LABELS[status],
     )
     filtered_df = results_df[results_df["overall_status"].isin(status_filter)]
     display_columns = [
@@ -394,15 +452,28 @@ else:
         "terminology_status",
         "overall_status",
     ]
-    st.dataframe(filtered_df[display_columns], use_container_width=True, hide_index=True)
+    st.dataframe(
+        localized_result_dataframe(filtered_df[display_columns]),
+        use_container_width=True,
+        hide_index=True,
+    )
 
     with st.expander("逐条查看"):
         for _, result in filtered_df.iterrows():
-            st.markdown(
-                f"**{safe_text(result['id']) or '(no id)'} · "
-                f"{result['target_language']} · {result['overall_status']}**"
+            language_label = LANGUAGE_OPTIONS.get(
+                result["target_language"], result["target_language"]
             )
-            st.caption(f"Provider: {result['provider']} · Model: {result['model']}")
+            status_label = STATUS_LABELS.get(result["overall_status"], result["overall_status"])
+            provider_label = (
+                "Mock（回退）"
+                if result["provider"] == "mock_fallback"
+                else PROVIDER_LABELS.get(result["provider"], result["provider"])
+            )
+            st.markdown(
+                f"**{safe_text(result['id']) or '(无 ID)'} · "
+                f"{language_label} · {status_label}**"
+            )
+            st.caption(f"服务商：{provider_label} · 模型：{result['model']}")
             st.write(result["localized_text"])
             st.caption(result["length_risk_reason"])
             if safe_text(result["terminology_issues"]):
@@ -415,4 +486,8 @@ else:
 
 if term_records:
     with st.expander("当前术语表"):
-        st.dataframe(summarize_terms(term_records), use_container_width=True, hide_index=True)
+        st.dataframe(
+            summarize_terms(term_records).rename(columns=TERM_COLUMN_LABELS),
+            use_container_width=True,
+            hide_index=True,
+        )
