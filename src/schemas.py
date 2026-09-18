@@ -57,6 +57,7 @@ RESULT_COLUMNS: list[str] = [
     "source_text",
     "copy_type",
     "target_language",
+    "request_id",
     "provider",
     "model",
     "provider_status",

@@ -9,7 +9,7 @@
 
 A Multilingual Copy Localization QA Tool for Chinese product copy. Built with Streamlit, this project is designed for product operations, app global expansion teams, and cross-border ecommerce copy teams. It supports batch input of Chinese copy, generates localized versions in English, Japanese, and French, and automatically produces a basic QA report.
 
-This project is positioned as a portfolio demo. It does not include enterprise-level account systems, permissions, or databases. Instead, it focuses on a clear product workflow, modular code organization, and a locally runnable AI application.
+This project is positioned as a portfolio demo. It does not include enterprise-level account systems, permissions, or databases. Instead, it focuses on a clear product workflow, modular code organization, and an AI application that can be deployed directly to the cloud.
 
 ## Feature Highlights
 
@@ -20,6 +20,8 @@ This project is positioned as a portfolio demo. It does not include enterprise-l
 - Automated checks for length risk, terminology consistency, cultural adaptation, and tone risk.
 - Mock fallback for failed API calls, so portfolio demos can continue even when a provider is unavailable.
 - Export results as CSV, Excel, or JSON, including provider and model metadata.
+- Separate UI blocks, the generation pipeline, QA, exports, and request archiving for easier maintenance.
+- Download every model request independently as JSON or JSONL without storing API keys.
 
 ## Tech Stack
 
@@ -46,6 +48,18 @@ required for compatibility with HTTPX 0.28 and newer. If the app reports
 `Client.__init__() got an unexpected keyword argument 'proxies'`, rerun the install command above
 and restart Streamlit.
 
+## No-local-setup, no-key demo
+
+The app defaults to the Mock provider, so the complete workflow works without a `.env` file or an API key: edit copy, run localization and QA, inspect results, and download the request archive.
+
+For a shareable URL, import the repository into [Streamlit Community Cloud](https://share.streamlit.io/), select `app.py` as the main file, and use `requirements.txt` for dependencies. No Secrets are required; without `.env`, the app remains in Mock mode. In a self-hosted environment, set the following to expose only the public Mock demo:
+
+```env
+DEMO_MODE=true
+```
+
+This mode makes no external model calls and is suitable for public portfolios, classrooms, and recorded walkthroughs.
+
 ## `.env` Configuration
 
 Copy `.env.example` to `.env` and fill in the values as needed:
@@ -54,6 +68,7 @@ Copy `.env.example` to `.env` and fill in the values as needed:
 # Default provider used when the app starts.
 # Valid values: mock, deepseek, openai, anthropic, openrouter
 DEFAULT_PROVIDER=mock
+DEMO_MODE=false
 
 # DeepSeek
 DEEPSEEK_API_KEY=
@@ -167,12 +182,25 @@ Each Chinese copy item and each target language generates one result row, includ
 
 The page supports exporting results as CSV, Excel, and JSON.
 
+## Independent model-request archive
+
+Results and model requests serve different purposes: results are for delivery and QA, while requests are for audit, debugging, and reproducibility. Each run collects request records in the current Streamlit session, including:
+
+- provider, model, target language, copy type, and timestamps;
+- the messages / request payload used by the client and a redacted endpoint hint;
+- a `request_sha256` content hash and provider outcome status.
+
+Each result row also keeps a `request_id`, so a QA result can be traced back to one independent request record.
+
+The page provides “下载请求 JSON” and “下载请求 JSONL” actions. Records stay in the current session and are not automatically written into the project directory; API keys are never included. Users can explicitly download them to a filesystem, object store, or logging system. If the project later needs team persistence, `request_store.py` is the boundary for adding a database or object-storage adapter.
+
 ## Project Structure
 
 ```text
 L10n-autotrans/
   app.py
   requirements.txt
+  pytest.ini
   .env.example
   README.md
   README.zh-CN.md
@@ -181,6 +209,11 @@ L10n-autotrans/
     sample_terms.csv
   src/
     __init__.py
+    pipeline.py
+    request_store.py
+    ui_inputs.py
+    ui_results.py
+    ui_sidebar.py
     llm_client.py
     prompts.py
     qa_rules.py
@@ -194,7 +227,8 @@ L10n-autotrans/
 
 - Clear user scenario: localization for global expansion products and ecommerce copy.
 - Interactive demo: the full workflow runs without an API key through mock mode.
-- Modular engineering structure: UI, multi-provider model calls, prompts, QA, terminology, and export logic are separated.
+- Modular engineering structure: UI blocks, the batch pipeline, multi-provider model calls, prompts, QA, terminology, exports, and request archiving are separated.
+- Deployable demo path: Streamlit Community Cloud can run the Mock demo without a local environment or Secrets.
 - Basic error handling: API errors, CSV format issues, and JSON parsing failures do not crash the whole page.
 - Practical product judgment: different copy types map to different QA focus areas.
 
@@ -203,7 +237,16 @@ L10n-autotrans/
 - Add more target languages and regional variants, such as `en-US`, `en-GB`, and `fr-CA`.
 - Support fuzzy terminology matching, case checks, brand-name protection, and multi-translation management.
 - Add batch retry, caching, cost tracking, and call logs.
+- Add request-archive upload/replay and shared object-storage adapters.
 - Add custom OpenAI-compatible providers or a lightweight provider registry.
 - Introduce more detailed UI length estimation based on font, font size, and component type.
 - Support human review status, reviewer notes, and second-pass rewriting.
 - Add pytest unit tests and CI checks.
+
+## Local-file rationale
+
+- Modules under `src/` represent runtime responsibility boundaries; they do not duplicate persisted data.
+- `sample_data/` contains only small, public demo inputs and terminology; it is demo content, not a runtime database.
+- Request records live in the session and in user-triggered downloads, so the demo does not need SQLite, cache directories, or a log directory.
+- `.env`, `.pytest_cache/`, `__pycache__/`, and `.DS_Store` are ignored by `.gitignore`; real secrets and generated artifacts should not be committed.
+- The English and Chinese READMEs serve different audiences and are documentation rather than duplicate runtime files. The empty `AGENTS.md` is a repository-metadata candidate and can be removed in a separate cleanup if it is no longer used.

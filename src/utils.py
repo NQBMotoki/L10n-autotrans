@@ -22,9 +22,16 @@ def load_env_config() -> dict[str, Any]:
     default_provider = os.getenv("DEFAULT_PROVIDER", "mock").strip().lower()
     if default_provider not in PROVIDER_ORDER:
         default_provider = "mock"
+    demo_mode = os.getenv("DEMO_MODE", "false").strip().lower() in {
+        "1",
+        "true",
+        "yes",
+        "on",
+    }
 
     return {
         "default_provider": default_provider,
+        "demo_mode": demo_mode,
         "providers": {
             "mock": {
                 "api_key": "",

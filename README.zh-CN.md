@@ -9,7 +9,7 @@
 
 中文产品文案多语言本地化生成与 QA 工具。项目基于 Streamlit 构建，面向产品运营、App 出海运营、电商出海文案团队，用于批量输入中文文案，生成英语、日语、法语本地化版本，并自动输出基础 QA 报告。
 
-本项目定位为作品集 Demo，不包含账号、权限、数据库等企业级系统，重点展示清晰的产品流程、模块化代码结构和可本地运行的 AI 应用能力。
+本项目定位为作品集 Demo，不包含账号、权限、数据库等企业级系统，重点展示清晰的产品流程、模块化代码结构和可直接部署到云端的 AI 应用能力。
 
 ## 功能亮点
 
@@ -20,6 +20,8 @@
 - 自动检查长度风险、术语一致性、文化适配和语气风险。
 - API 调用失败时可自动回退到 Mock，方便作品集演示不中断。
 - 支持导出 CSV、Excel、JSON，并保留 provider 与 model 信息。
+- 页面、生成管线、QA、导出和请求归档彼此解耦，便于替换 Provider 或扩展功能。
+- 每次发送给模型的请求可独立下载为 JSON / JSONL；归档不包含 API Key。
 
 ## 技术栈
 
@@ -45,6 +47,18 @@ streamlit run app.py
 HTTPX 0.28 及后续版本。如果页面出现
 `Client.__init__() got an unexpected keyword argument 'proxies'`，请重新执行上面的安装命令并重启 Streamlit。
 
+## 无本地部署、无 API Key 的演示
+
+应用默认使用 Mock Provider，因此不配置 `.env`、不输入 API Key 也可以完整演示：编辑文案，运行本地化与 QA，查看结果并下载请求归档。
+
+如果希望给他人一个网页链接，可将仓库导入 [Streamlit Community Cloud](https://share.streamlit.io/)，主文件选择 `app.py`，依赖文件选择 `requirements.txt`。部署时不需要配置 Secrets；没有 `.env` 时应用会自动保持 Mock 模式。若在自托管环境中希望强制公开演示只显示 Mock，可设置：
+
+```env
+DEMO_MODE=true
+```
+
+该模式不会发起任何外部模型请求，适合公开作品集、课堂展示和录屏。
+
 ## `.env` 配置
 
 复制 `.env.example` 为 `.env`，并按需填写：
@@ -53,6 +67,7 @@ HTTPX 0.28 及后续版本。如果页面出现
 # Default provider used when the app starts.
 # Valid values: mock, deepseek, openai, anthropic, openrouter
 DEFAULT_PROVIDER=mock
+DEMO_MODE=false
 
 # DeepSeek
 DEEPSEEK_API_KEY=
@@ -166,12 +181,25 @@ source_term,target_language,target_term,note
 
 页面支持导出为 CSV、Excel、JSON。
 
+## 模型请求独立归档
+
+结果表与模型请求是两类不同的资料：结果适合交付和 QA，请求适合审计、调试和复现。每次运行都会在当前 Streamlit session 中收集请求记录，记录内容包括：
+
+- provider、model、目标语言、文案类型和时间；
+- 实际使用的消息 / 请求 payload，以及脱敏后的 endpoint 提示；
+- `request_sha256` 内容哈希和调用结果状态。
+
+结果行同时保留 `request_id`，因此可以从 QA 结果精确定位到独立请求记录。
+
+页面提供“下载请求 JSON”和“下载请求 JSONL”。归档只在当前 session 中暂存，不会自动写入项目目录，也不会保存 API Key；需要长期保存时由使用者主动下载到自己的文件系统、对象存储或日志系统。这种方式适合当前 Demo，后续若需要团队协作，再把 `request_store.py` 的记录写入数据库或对象存储即可。
+
 ## 项目结构
 
 ```text
 L10n-autotrans/
   app.py
   requirements.txt
+  pytest.ini
   .env.example
   README.md
   README.zh-CN.md
@@ -180,6 +208,11 @@ L10n-autotrans/
     sample_terms.csv
   src/
     __init__.py
+    pipeline.py
+    request_store.py
+    ui_inputs.py
+    ui_results.py
+    ui_sidebar.py
     llm_client.py
     prompts.py
     qa_rules.py
@@ -193,7 +226,8 @@ L10n-autotrans/
 
 - 有明确用户场景：出海产品和电商文案本地化。
 - 有可交互 Demo：无需 API Key 也能完整跑通。
-- 有工程化拆分：页面、多 Provider 模型调用、Prompt、QA、术语、导出分层清晰。
+- 有工程化拆分：页面组块、批处理管线、多 Provider 模型调用、Prompt、QA、术语、导出和请求归档分层清晰。
+- 有可部署演示路径：Streamlit Community Cloud 不需要本地环境或 Secrets 也能运行 Mock Demo。
 - 有基础错误处理：API 异常、CSV 格式错误、JSON 解析失败不会导致整页崩溃。
 - 有真实业务判断：不同文案类型对应不同 QA 关注点。
 
@@ -202,7 +236,16 @@ L10n-autotrans/
 - 增加更多目标语言和地区变体，如 `en-US`、`en-GB`、`fr-CA`。
 - 支持术语近似匹配、大小写检查、品牌名保护和多译法管理。
 - 增加批量重试、缓存、成本统计和调用日志。
+- 增加请求归档的上传 / 重放，以及团队共享的对象存储适配器。
 - 增加自定义 OpenAI-compatible Provider 或轻量 Provider 注册机制。
 - 引入更细的 UI 长度估算，例如按字体、字号、组件类型计算。
 - 支持人工审校状态、备注和二次改写。
 - 增加 pytest 单元测试与 CI 检查。
+
+## 本地文件取舍
+
+- `src/` 中的模块都是运行时职责边界，不因为文件数量增加而重复保存数据。
+- `sample_data/` 只保留小型、可公开的演示输入和术语表；它们是演示资产，不是运行时数据库。
+- 请求记录默认只存在 session 和用户主动下载的文件中，因此当前项目不需要 SQLite、缓存目录或日志目录。
+- `.env`、`.pytest_cache/`、`__pycache__/` 和 `.DS_Store` 已通过 `.gitignore` 排除；不应提交真实密钥或生成物。
+- 中英文 README 是面向不同读者的文档，不视为重复运行文件；空的 `AGENTS.md` 是仓库元文件候选项，若不再使用可在单独清理时删除。
